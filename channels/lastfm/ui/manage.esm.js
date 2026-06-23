@@ -46,7 +46,7 @@ class LastfmManager extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._state = {
       loading: true, saving: false, error: null,
-      username: '', apiKey: '', showLastPlayed: true, theme: 'dark',
+      username: '', apiKey: '', showLastPlayed: true, theme: 'dark', squareStyle: 'art_only',
       configured: false, track: null, trackStatus: null,
     };
     this._pollTimer = null;
@@ -79,6 +79,7 @@ class LastfmManager extends HTMLElement {
           apiKey: '',                        // never pre-fill masked key
           showLastPlayed: s.show_last_played !== false,
           theme: s.theme || 'dark',
+          squareStyle: s.square_style || 'art_only',
           configured: s.configured || false,
         });
       }
@@ -95,6 +96,7 @@ class LastfmManager extends HTMLElement {
       theme: s.theme,
     };
     if (s.apiKey.trim()) body.api_key = s.apiKey.trim();
+    body.square_style = s.squareStyle;
 
     this._set({ saving: true, error: null });
     try {
@@ -167,6 +169,13 @@ class LastfmManager extends HTMLElement {
               <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Light</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Square Display Style</label>
+            <select id="squarestyle">
+              <option value="art_only" ${s.squareStyle === 'art_only' ? 'selected' : ''}>Album art only</option>
+              <option value="with_details" ${s.squareStyle === 'with_details' ? 'selected' : ''}>Album art + track details</option>
+            </select>
+          </div>
           <div class="actions">
             <button class="btn btn-primary" id="save" ${s.saving ? 'disabled' : ''}>
               ${s.saving ? '<span class="spinner"></span> Saving…' : 'Save Settings'}
@@ -182,6 +191,7 @@ class LastfmManager extends HTMLElement {
     shadow.getElementById('apikey')?.addEventListener('input', e => { this._state.apiKey = e.target.value; });
     shadow.getElementById('showlast')?.addEventListener('change', e => { this._state.showLastPlayed = e.target.checked; });
     shadow.getElementById('theme')?.addEventListener('change', e => { this._state.theme = e.target.value; });
+    shadow.getElementById('squarestyle')?.addEventListener('change', e => { this._state.squareStyle = e.target.value; });
   }
 
   _nowPlayingHtml(track, status) {

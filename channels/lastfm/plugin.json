@@ -2,7 +2,7 @@
   "id": "com.lastfm.nowplaying",
   "name": "Last.fm Now Playing",
   "description": "Displays your currently scrobbling track from Last.fm with album art. Works with Apple Music, Spotify, or any Last.fm-connected player. Requires a free Last.fm API key.",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "type": "embedded",
   "entry_point": "channel.py",
   "class_name": "LastfmChannel",
@@ -18,7 +18,7 @@
   },
   "requirements": {
     "python": ">=3.8",
-    "dependencies": ["fastapi", "pillow", "requests"]
+    "dependencies": ["fastapi", "pillow", "requests", "jinja2"]
   },
   "user_data_dirs": ["data"],
   "update_schedule": {
@@ -56,8 +56,15 @@
           "type": "string",
           "enum": ["dark", "light"],
           "title": "Theme",
-          "description": "Color scheme for the display card",
+          "description": "Color scheme for landscape and portrait layouts",
           "default": "dark"
+        },
+        "square_style": {
+          "type": "string",
+          "enum": ["art_only", "with_details"],
+          "title": "Square Display Style",
+          "description": "art_only = full-bleed album art; with_details = art + track info overlay",
+          "default": "art_only"
         }
       }
     }

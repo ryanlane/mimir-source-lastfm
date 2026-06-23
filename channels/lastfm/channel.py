@@ -1,7 +1,6 @@
 """Last.fm Now Playing channel for Mimir."""
 
 import hashlib
-import io
 import json
 import logging
 from datetime import datetime, timezone
@@ -52,6 +51,7 @@ class LastfmChannel:
                 "api_key": "",
                 "show_last_played": True,
                 "theme": "dark",
+                "square_style": "art_only",
             }
 
     def _save_settings(self) -> None:
@@ -133,10 +133,10 @@ class LastfmChannel:
         rd = request_data or {}
         settings_block = rd.get("settings", {})
 
-        width     = int(settings_block.get("resolution", [800, 480])[0])
-        height    = int(settings_block.get("resolution", [800, 480])[1])
-        grayscale = bool(settings_block.get("grayscale", False))
-        theme     = self.settings.get("theme", "dark")
+        width        = int(settings_block.get("resolution", [800, 480])[0])
+        height       = int(settings_block.get("resolution", [800, 480])[1])
+        theme        = self.settings.get("theme", "dark")
+        square_style = self.settings.get("square_style", "art_only")
 
         track_info, status = self._fetch_track()
 
@@ -155,43 +155,33 @@ class LastfmChannel:
             str(is_playing),
         ]
         content_fp = hashlib.md5("|".join(fp_parts).encode()).hexdigest()
-        cache_key  = f"{content_fp}|{width}x{height}|{'g' if grayscale else 'c'}|{theme}"
+        cache_key  = f"{content_fp}|{width}x{height}|{theme}|{square_style}"
 
         cached = self._image_cache.get(cache_key)
         if cached:
-            return self._build_response(cached, track_info, width, height, grayscale, theme, content_fp, hit=True)
+            return self._build_response(cached, track_info, width, height, theme, content_fp, hit=True)
 
-        image = _renderer.render(
-            track    = track_info["track"]  if track_info else "",
-            artist   = track_info["artist"] if track_info else "",
-            album    = track_info["album"]  if track_info else "",
-            art_url  = track_info.get("art_url") if track_info else None,
+        raw = await _renderer.render(
+            track      = track_info["track"]  if track_info else "",
+            artist     = track_info["artist"] if track_info else "",
+            album      = track_info["album"]  if track_info else "",
+            art_url    = track_info.get("art_url") if track_info else None,
             is_playing = is_playing,
-            width    = width,
-            height   = height,
-            theme    = theme,
+            width      = width,
+            height     = height,
+            theme      = theme,
+            square_style = square_style,
         )
 
-        if grayscale:
-            image = image.convert("L")
-
-        buf = io.BytesIO()
-        try:
-            image.save(buf, format="JPEG", quality=95)
-            fmt, ct = "jpeg", "image/jpeg"
-        except Exception:
-            buf = io.BytesIO()
-            image.save(buf, format="PNG")
-            fmt, ct = "png", "image/png"
-
-        raw = buf.getvalue()
+        ct  = "image/jpeg"
+        fmt = "jpeg"
         sha = hashlib.sha256(raw).hexdigest()
 
         entry = {"bytes": raw, "format": fmt, "content_type": ct, "sha256": sha,
                  "description": self._description(track_info, is_playing)}
         self._image_cache[cache_key] = entry
 
-        return self._build_response(entry, track_info, width, height, grayscale, theme, content_fp, hit=False)
+        return self._build_response(entry, track_info, width, height, theme, content_fp, hit=False)
 
     def _description(self, track_info: Optional[Dict], is_playing: bool) -> str:
         if not track_info:
@@ -199,7 +189,7 @@ class LastfmChannel:
         verb = "Now playing" if is_playing else "Last played"
         return f"{verb}: {track_info['track']} — {track_info['artist']}"
 
-    def _build_response(self, entry, track_info, width, height, grayscale, theme, fp, hit):
+    def _build_response(self, entry, track_info, width, height, theme, fp, hit):
         return {
             "success":            True,
             "bytes":              entry["bytes"],
@@ -209,7 +199,6 @@ class LastfmChannel:
             "preferred_transport": "bytes",
             "width":              width,
             "height":             height,
-            "grayscale":          grayscale,
             "description":        entry["description"],
             "track_info":         track_info,
             "content_fingerprint": fp,
@@ -284,7 +273,7 @@ class LastfmChannel:
         @router.put("/settings")
         async def put_settings(request: Request):
             body = await request.json()
-            for key in ("username", "api_key", "show_last_played", "theme"):
+            for key in ("username", "api_key", "show_last_played", "theme", "square_style"):
                 if key in body:
                     self.settings[key] = body[key]
             self._save_settings()
