@@ -25,11 +25,20 @@ class LastfmChannel:
         self.data_dir = self.channel_dir / "data"
         self.data_dir.mkdir(exist_ok=True)
         self._settings_path = self.data_dir / "settings.json"
+        self._meta = self._load_plugin_json()
+        self.id = self._meta.get("id", "com.lastfm.nowplaying")
         self.settings = self._load_settings()
         if config:
             self.settings.update(config)
         self._save_settings()
         self._image_cache: Dict[str, Dict[str, Any]] = {}
+
+    def _load_plugin_json(self) -> Dict[str, Any]:
+        try:
+            with open(self.channel_dir / "plugin.json") as f:
+                return json.load(f)
+        except Exception:
+            return {}
 
     # ── Settings ──────────────────────────────────────────────────────────────
 
@@ -218,16 +227,50 @@ class LastfmChannel:
             },
         }
 
+    # ── Manifest ──────────────────────────────────────────────────────────────
+
+    def get_manifest(self) -> Dict[str, Any]:
+        return {
+            "id":          self.id,
+            "name":        self._meta.get("name", "Last.fm Now Playing"),
+            "version":     self._meta.get("version", "1.0.0"),
+            "description": self._meta.get("description", ""),
+            "icon":        self._meta.get("icon", "music"),
+            "capabilities": {
+                "supports_upload":      False,
+                "supports_subchannels": False,
+            },
+            "ui": {
+                "components": {"manager": f"/api/channels/{self.id}/ui/manage.esm.js"},
+                "elements":   {"manager": "x-lastfm-manager"},
+            },
+            "healthy":     True,
+            "configured":  bool(self.settings.get("username") and self.settings.get("api_key")),
+        }
+
     # ── FastAPI router ────────────────────────────────────────────────────────
 
-    def build_router(self) -> APIRouter:
+    def get_router(self) -> APIRouter:
         router = APIRouter()
+        _ui_dir = self.channel_dir / "ui"
+
+        @router.get("/ui/{filename:path}")
+        async def serve_ui(filename: str):
+            from fastapi.responses import FileResponse
+            file_path = (_ui_dir / filename).resolve()
+            try:
+                file_path.relative_to(_ui_dir.resolve())
+            except ValueError:
+                from fastapi import HTTPException
+                raise HTTPException(403)
+            if not file_path.exists():
+                from fastapi import HTTPException
+                raise HTTPException(404)
+            return FileResponse(str(file_path))
 
         @router.get("/manifest")
         async def manifest():
-            plugin_json = self.channel_dir / "plugin.json"
-            with open(plugin_json) as f:
-                return JSONResponse(json.load(f))
+            return JSONResponse(self.get_manifest())
 
         @router.get("/status")
         async def status():
