@@ -1,0 +1,72 @@
+{
+  "id": "com.lastfm.nowplaying",
+  "name": "Last.fm Now Playing",
+  "description": "Displays your currently scrobbling track from Last.fm with album art. Works with Apple Music, Spotify, or any Last.fm-connected player. Requires a free Last.fm API key.",
+  "version": "1.0.0",
+  "type": "embedded",
+  "entry_point": "channel.py",
+  "class_name": "LastfmChannel",
+  "icon": "music",
+  "author": "Ryan Lane",
+  "tags": ["music", "lastfm", "now-playing", "scrobbling"],
+  "schemaVersion": "2.4",
+  "settingsType": "advanced",
+  "config": {
+    "supports_upload": false,
+    "supports_subchannels": false,
+    "requires_api_key": true
+  },
+  "requirements": {
+    "python": ">=3.8",
+    "dependencies": ["fastapi", "pillow", "requests"]
+  },
+  "user_data_dirs": ["data"],
+  "update_schedule": {
+    "unit": "minutes",
+    "duration": 1,
+    "settings_driven": false
+  },
+  "settings": {
+    "defaults": {
+      "username": "",
+      "api_key": "",
+      "show_last_played": true,
+      "theme": "dark"
+    },
+    "schema": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "title": "Last.fm Username",
+          "description": "Your Last.fm username"
+        },
+        "api_key": {
+          "type": "string",
+          "title": "Last.fm API Key",
+          "description": "Free API key from last.fm/api/account/create"
+        },
+        "show_last_played": {
+          "type": "boolean",
+          "title": "Show Last Played When Idle",
+          "description": "When nothing is playing, show the most recently scrobbled track",
+          "default": true
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light"],
+          "title": "Theme",
+          "description": "Color scheme for the display card",
+          "default": "dark"
+        }
+      }
+    }
+  },
+  "endpoints": [
+    { "path": "/manifest",      "method": "GET",  "description": "Channel manifest" },
+    { "path": "/request-image", "method": "POST", "description": "Render now-playing image" },
+    { "path": "/settings",      "method": "GET",  "description": "Get settings" },
+    { "path": "/settings",      "method": "PUT",  "description": "Update settings" },
+    { "path": "/status",        "method": "GET",  "description": "Current track info" }
+  ]
+}
