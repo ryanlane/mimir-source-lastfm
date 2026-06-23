@@ -1,5 +1,6 @@
 """Last.fm Now Playing channel for Mimir."""
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -15,7 +16,8 @@ from . import renderer as _renderer
 
 logger = logging.getLogger(__name__)
 
-LASTFM_API = "https://ws.audioscrobbler.com/2.0/"
+LASTFM_API  = "https://ws.audioscrobbler.com/2.0/"
+POLL_INTERVAL = 15  # seconds between Last.fm polls
 
 
 class LastfmChannel:
@@ -31,6 +33,9 @@ class LastfmChannel:
             self.settings.update(config)
         self._save_settings()
         self._image_cache: Dict[str, Dict[str, Any]] = {}
+        self._cached_track: Optional[Dict[str, Any]] = None
+        self._cached_status: str = "not_started"
+        self._poller_task: Optional[asyncio.Task] = None
 
     def _load_plugin_json(self) -> Dict[str, Any]:
         try:
@@ -127,6 +132,30 @@ class LastfmChannel:
             "url":        track.get("url", ""),
         }, "ok"
 
+    # ── Background poller ────────────────────────────────────────────────────
+
+    async def _poll_loop(self):
+        while True:
+            try:
+                loop = asyncio.get_event_loop()
+                track_info, status = await loop.run_in_executor(None, self._fetch_track)
+                self._cached_track  = track_info
+                self._cached_status = status
+            except Exception as exc:
+                logger.warning("[lastfm] poller error: %s", exc)
+            await asyncio.sleep(POLL_INTERVAL)
+
+    def _ensure_poller(self):
+        if self._poller_task is None or self._poller_task.done():
+            try:
+                self._poller_task = asyncio.get_event_loop().create_task(self._poll_loop())
+            except RuntimeError:
+                pass
+
+    async def _warm_cache(self):
+        loop = asyncio.get_event_loop()
+        self._cached_track, self._cached_status = await loop.run_in_executor(None, self._fetch_track)
+
     # ── request_image ─────────────────────────────────────────────────────────
 
     async def request_image(self, request_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -138,7 +167,12 @@ class LastfmChannel:
         theme        = self.settings.get("theme", "dark")
         square_style = self.settings.get("square_style", "art_only")
 
-        track_info, status = self._fetch_track()
+        self._ensure_poller()
+        if self._cached_status == "not_started":
+            await self._warm_cache()
+
+        track_info = self._cached_track
+        status     = self._cached_status
 
         if track_info is None:
             show_last = self.settings.get("show_last_played", True)
@@ -263,8 +297,13 @@ class LastfmChannel:
 
         @router.get("/status")
         async def status():
-            track_info, stat = self._fetch_track()
-            return JSONResponse({"success": True, "track": track_info, "status": stat})
+            self._ensure_poller()
+            return JSONResponse({
+                "success":       True,
+                "track":         self._cached_track,
+                "status":        self._cached_status,
+                "poll_interval": POLL_INTERVAL,
+            })
 
         @router.get("/settings")
         async def get_settings():
@@ -278,6 +317,11 @@ class LastfmChannel:
                     self.settings[key] = body[key]
             self._save_settings()
             self._image_cache.clear()
+            self._cached_track  = None
+            self._cached_status = "not_started"
+            if self._poller_task and not self._poller_task.done():
+                self._poller_task.cancel()
+            self._poller_task = None
             return JSONResponse({"success": True, "settings": self._masked_settings()})
 
         @router.post("/request-image")
