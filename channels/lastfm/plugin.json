@@ -62,6 +62,18 @@
       }
     }
   },
+  "ui": [
+    {
+      "route": "/lastfm-nowplaying",
+      "element": "x-lastfm-manager",
+      "moduleUrl": "/api/channels/com.lastfm.nowplaying/ui/manage.esm.js",
+      "nav": {
+        "label": "Last.fm Now Playing",
+        "icon": "music"
+      },
+      "renderMode": "element"
+    }
+  ],
   "endpoints": [
     { "path": "/manifest",      "method": "GET",  "description": "Channel manifest" },
     { "path": "/request-image", "method": "POST", "description": "Render now-playing image" },
