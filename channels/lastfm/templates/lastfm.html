@@ -13,130 +13,148 @@
   }
 
   :root {
-    --bg:      #0f0f0f;
-    --bg2:     #1a1a1a;
-    --border:  rgba(255,255,255,0.08);
-    --text:    #f5f5f5;
-    --sub:     rgba(245,245,245,0.6);
-    --dim:     rgba(245,245,245,0.35);
-    --accent:  #ba0000;
-    --badge-bg:#ba0000;
-    --badge-idle: #333;
+    --bg:     #0f0f0f;
+    --bg2:    #1a1a1a;
+    --text:   #f5f5f5;
+    --sub:    rgba(245,245,245,0.65);
+    --dim:    rgba(245,245,245,0.35);
+    --accent: #ba0000;
   }
   [data-theme="light"] {
-    --bg:      #f0f0f0;
-    --bg2:     #ffffff;
-    --border:  rgba(0,0,0,0.08);
-    --text:    #111111;
-    --sub:     rgba(17,17,17,0.6);
-    --dim:     rgba(17,17,17,0.35);
-    --accent:  #ba0000;
-    --badge-bg:#ba0000;
-    --badge-idle: #bbb;
+    --bg:     #f0f0f0;
+    --bg2:    #ffffff;
+    --text:   #111111;
+    --sub:    rgba(17,17,17,0.65);
+    --dim:    rgba(17,17,17,0.35);
+    --accent: #ba0000;
   }
 
   body { background: var(--bg); color: var(--text); }
 
-  .art-bg {
+  /* ── Art block: blurred backdrop + contained foreground ─────────── */
+  .art-block {
+    position: relative;
+    overflow: hidden;
+    background: #0a0a0a;
+    flex-shrink: 0;
+  }
+  .art-blur {
     position: absolute;
-    inset: 0;
+    inset: -8%;       /* slightly oversize so blur edges don't show */
+    width: 116%;
+    height: 116%;
     background-size: cover;
     background-position: center;
+    filter: blur(18px) brightness(0.55) saturate(1.4);
   }
-  .art-bg.has-art { background-image: var(--art-url); }
-  .art-bg.no-art  { background: linear-gradient(135deg, #1a0000 0%, #0a0a0a 100%); }
+  .art-blur.has-art { background-image: var(--art-url); }
+  .art-blur.no-art  { background: radial-gradient(ellipse at center, #2a1a1a 0%, #0a0a0a 100%); }
 
+  .art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;   /* NEVER crop */
+    object-position: center;
+  }
+  .art-no-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15vmin;
+    opacity: 0.15;
+  }
+
+  /* ── Badge ───────────────────────────────────────────────────────── */
   .badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+    gap: 0.5vmin;
+    font-size: 1.6vmin;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    padding: 3px 10px;
+    padding: 0.4vmin 1.2vmin;
     border-radius: 99px;
-    background: var(--badge-bg);
+    background: #ba0000;
     color: #fff;
+    flex-shrink: 0;
   }
-  .badge.idle { background: var(--badge-idle); color: rgba(255,255,255,0.7); }
-  .badge svg  { width: 8px; height: 8px; fill: currentColor; flex-shrink: 0; }
+  .badge.idle {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.6);
+  }
+  [data-theme="light"] .badge.idle {
+    background: rgba(0,0,0,0.1);
+    color: rgba(0,0,0,0.45);
+  }
+  .badge svg { width: 1vmin; height: 1vmin; fill: currentColor; flex-shrink: 0; }
 
-  /* ── SQUARE: art only ───────────────────────────────────────────── */
-  [data-layout="square"] body { position: relative; }
-  [data-layout="square"] .art-bg { filter: none; }
-  [data-layout="square"] .art-bg.no-art {
-    display: flex; align-items: center; justify-content: center;
+  /* ── Track text ───────────────────────────────────────────────────── */
+  .track-name   { font-size: 5vmin; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--text); }
+  .track-artist { font-size: 3vmin; font-weight: 400; color: var(--sub); margin-top: 0.5vmin; }
+  .track-album  { font-size: 2.2vmin; color: var(--dim); margin-top: 0.3vmin; }
+
+  .lastfm-dot {
+    display: inline-block;
+    width: 1.4vmin;
+    height: 1.4vmin;
+    border-radius: 50%;
+    background: #ba0000;
+    flex-shrink: 0;
   }
-  [data-layout="square"] .no-art-icon {
-    font-size: clamp(3rem, 15vw, 6rem);
-    opacity: 0.2;
+  .lastfm-mark {
+    display: flex;
+    align-items: center;
+    gap: 0.8vmin;
+    font-size: 1.4vmin;
+    color: var(--dim);
+    margin-top: auto;
+    padding-top: 2vmin;
   }
 
-  /* ── SQUARE-DETAILS: art full-bleed + bottom overlay ───────────── */
-  [data-layout="square-details"] body { position: relative; }
-  [data-layout="square-details"] .art-bg { filter: none; }
-
-  [data-layout="square-details"] .overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(0,0,0,0) 30%,
-      rgba(0,0,0,0.5) 55%,
-      rgba(0,0,0,0.88) 100%
-    );
+  /* ══ SQUARE — art only ═══════════════════════════════════════════ */
+  [data-layout="square"] .art-block {
+    width: 100%;
+    height: 100%;
   }
-  [data-layout="square-details"] .info-block {
+
+  /* ══ SQUARE-DETAILS — art + overlay ══════════════════════════════ */
+  [data-layout="square-details"] .art-block {
+    width: 100%;
+    height: 100%;
+  }
+  [data-layout="square-details"] .info-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    padding: clamp(14px, 3.5vw, 28px);
+    background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.9) 100%);
+    padding: 8% 6% 5%;
     display: flex;
     flex-direction: column;
-    gap: clamp(4px, 1vw, 8px);
+    gap: 0.6vmin;
   }
-  [data-layout="square-details"] .track-name {
-    font-size: clamp(1.2rem, 5vw, 2.4rem);
-    font-weight: 700;
-    line-height: 1.15;
-    color: #fff;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
-  }
-  [data-layout="square-details"] .track-artist {
-    font-size: clamp(0.8rem, 3vw, 1.3rem);
-    font-weight: 400;
-    color: rgba(255,255,255,0.8);
-    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
-  }
-  [data-layout="square-details"] .track-album {
-    font-size: clamp(0.65rem, 2.2vw, 1rem);
-    color: rgba(255,255,255,0.5);
-  }
-  [data-layout="square-details"] .badge-row {
-    margin-bottom: clamp(4px, 1vw, 8px);
-  }
+  [data-layout="square-details"] .track-name   { color: #fff; }
+  [data-layout="square-details"] .track-artist { color: rgba(255,255,255,0.75); }
+  [data-layout="square-details"] .track-album  { color: rgba(255,255,255,0.45); }
 
-  /* ── LANDSCAPE ──────────────────────────────────────────────────── */
-  [data-layout="landscape"] .wrap {
+  /* ══ LANDSCAPE ═══════════════════════════════════════════════════ */
+  [data-layout="landscape"] body {
     display: flex;
+  }
+  [data-layout="landscape"] .art-block {
+    width: 42%;
     height: 100%;
   }
-  [data-layout="landscape"] .art-panel {
-    width: clamp(180px, 42%, 420px);
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-  }
-  [data-layout="landscape"] .art-bg {
+  [data-layout="landscape"] .art-scrim {
     position: absolute;
     inset: 0;
-  }
-  [data-layout="landscape"] .art-panel .art-scrim {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, rgba(0,0,0,0) 60%, var(--bg) 100%);
+    background: linear-gradient(to right, transparent 60%, var(--bg) 100%);
+    pointer-events: none;
   }
   [data-layout="landscape"] .details-panel {
     flex: 1;
@@ -144,64 +162,24 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: clamp(20px, 4vw, 48px) clamp(20px, 4vw, 48px) clamp(20px, 4vw, 48px) clamp(12px, 2vw, 24px);
-    gap: clamp(6px, 1.5vw, 14px);
-  }
-  [data-layout="landscape"] .track-name {
-    font-size: clamp(1.4rem, 5vw, 3rem);
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    color: var(--text);
-  }
-  [data-layout="landscape"] .track-artist {
-    font-size: clamp(0.9rem, 2.5vw, 1.6rem);
-    font-weight: 400;
-    color: var(--sub);
-  }
-  [data-layout="landscape"] .track-album {
-    font-size: clamp(0.7rem, 1.8vw, 1.1rem);
-    color: var(--dim);
-  }
-  [data-layout="landscape"] .lastfm-mark {
-    margin-top: auto;
-    padding-top: clamp(8px, 1.5vw, 16px);
-    font-size: clamp(0.55rem, 1.1vw, 0.75rem);
-    color: var(--dim);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  [data-layout="landscape"] .lastfm-mark::before {
-    content: '';
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #ba0000;
-    flex-shrink: 0;
+    padding: 5% 6% 5% 3%;
+    gap: 0.6vmin;
   }
 
-  /* ── PORTRAIT ───────────────────────────────────────────────────── */
-  [data-layout="portrait"] .wrap {
+  /* ══ PORTRAIT ════════════════════════════════════════════════════ */
+  [data-layout="portrait"] body {
     display: flex;
     flex-direction: column;
-    height: 100%;
   }
-  [data-layout="portrait"] .art-panel {
-    height: clamp(160px, 50%, 480px);
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
+  [data-layout="portrait"] .art-block {
+    width: 100%;
+    height: 50%;
   }
-  [data-layout="portrait"] .art-bg {
+  [data-layout="portrait"] .art-scrim {
     position: absolute;
     inset: 0;
-  }
-  [data-layout="portrait"] .art-panel .art-scrim {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to bottom, rgba(0,0,0,0) 55%, var(--bg) 100%);
+    background: linear-gradient(to bottom, transparent 55%, var(--bg) 100%);
+    pointer-events: none;
   }
   [data-layout="portrait"] .details-panel {
     flex: 1;
@@ -209,114 +187,92 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding: clamp(12px, 3vw, 28px) clamp(20px, 5vw, 40px);
-    gap: clamp(4px, 1.2vw, 10px);
-  }
-  [data-layout="portrait"] .track-name {
-    font-size: clamp(1.3rem, 5.5vw, 2.6rem);
-    font-weight: 700;
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-    color: var(--text);
-  }
-  [data-layout="portrait"] .track-artist {
-    font-size: clamp(0.9rem, 3.5vw, 1.5rem);
-    color: var(--sub);
-  }
-  [data-layout="portrait"] .track-album {
-    font-size: clamp(0.7rem, 2.5vw, 1.1rem);
-    color: var(--dim);
-  }
-  [data-layout="portrait"] .lastfm-mark {
-    margin-top: auto;
-    padding-top: clamp(8px, 2vw, 16px);
-    font-size: clamp(0.55rem, 1.8vw, 0.75rem);
-    color: var(--dim);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  [data-layout="portrait"] .lastfm-mark::before {
-    content: '';
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #ba0000;
-    flex-shrink: 0;
+    padding: 3% 6% 4%;
+    gap: 0.6vmin;
   }
 </style>
 </head>
 <body>
 
 {% if layout == "square" %}
-  <div class="art-bg {% if art %}has-art{% else %}no-art{% endif %}"
-       {% if art %}style="--art-url: url('{{ art }}')"{% endif %}>
-    {% if not art %}<div class="no-art-icon">♫</div>{% endif %}
+
+  <div class="art-block">
+    <div class="art-blur {% if art %}has-art{% else %}no-art{% endif %}"
+         {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
+    {% if art %}
+      <img class="art-img" src="{{ art }}" alt="">
+    {% else %}
+      <div class="art-no-icon">♫</div>
+    {% endif %}
   </div>
 
 {% elif layout == "square-details" %}
-  <div class="art-bg {% if art %}has-art{% else %}no-art{% endif %}"
-       {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
-  <div class="overlay"></div>
-  <div class="info-block">
-    <div class="badge-row">
+
+  <div class="art-block">
+    <div class="art-blur {% if art %}has-art{% else %}no-art{% endif %}"
+         {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
+    {% if art %}
+      <img class="art-img" src="{{ art }}" alt="">
+    {% else %}
+      <div class="art-no-icon">♫</div>
+    {% endif %}
+    <div class="info-overlay">
       <span class="badge {% if not is_playing %}idle{% endif %}">
-        {% if is_playing %}
-          <svg viewBox="0 0 8 10"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
-        {% else %}
-          Last Played
-        {% endif %}
+        {% if is_playing %}<svg viewBox="0 0 8 10"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
+        {% else %}Last Played{% endif %}
       </span>
+      <div class="track-name">{{ track }}</div>
+      <div class="track-artist">{{ artist }}</div>
+      {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
     </div>
-    <div class="track-name">{{ track }}</div>
-    <div class="track-artist">{{ artist }}</div>
-    {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
   </div>
 
 {% elif layout == "landscape" %}
-  <div class="wrap">
-    <div class="art-panel">
-      <div class="art-bg {% if art %}has-art{% else %}no-art{% endif %}"
-           {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
-      <div class="art-scrim"></div>
-    </div>
-    <div class="details-panel">
-      <span class="badge {% if not is_playing %}idle{% endif %}">
-        {% if is_playing %}
-          <svg viewBox="0 0 8 10" style="width:8px;height:8px;fill:currentColor"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
-        {% else %}
-          Last Played
-        {% endif %}
-      </span>
-      <div class="track-name">{{ track }}</div>
-      <div class="track-artist">{{ artist }}</div>
-      {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
-      <div class="lastfm-mark">Last.fm</div>
-    </div>
+
+  <div class="art-block">
+    <div class="art-blur {% if art %}has-art{% else %}no-art{% endif %}"
+         {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
+    {% if art %}
+      <img class="art-img" src="{{ art }}" alt="">
+    {% else %}
+      <div class="art-no-icon">♫</div>
+    {% endif %}
+    <div class="art-scrim"></div>
+  </div>
+  <div class="details-panel">
+    <span class="badge {% if not is_playing %}idle{% endif %}">
+      {% if is_playing %}<svg viewBox="0 0 8 10" style="width:1vmin;height:1vmin;fill:currentColor"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
+      {% else %}Last Played{% endif %}
+    </span>
+    <div class="track-name">{{ track }}</div>
+    <div class="track-artist">{{ artist }}</div>
+    {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
+    <div class="lastfm-mark"><span class="lastfm-dot"></span> Last.fm</div>
   </div>
 
 {% elif layout == "portrait" %}
-  <div class="wrap">
-    <div class="art-panel">
-      <div class="art-bg {% if art %}has-art{% else %}no-art{% endif %}"
-           {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
-      <div class="art-scrim"></div>
-    </div>
-    <div class="details-panel">
-      <span class="badge {% if not is_playing %}idle{% endif %}">
-        {% if is_playing %}
-          <svg viewBox="0 0 8 10" style="width:8px;height:8px;fill:currentColor"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
-        {% else %}
-          Last Played
-        {% endif %}
-      </span>
-      <div class="track-name">{{ track }}</div>
-      <div class="track-artist">{{ artist }}</div>
-      {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
-      <div class="lastfm-mark">Last.fm</div>
-    </div>
+
+  <div class="art-block">
+    <div class="art-blur {% if art %}has-art{% else %}no-art{% endif %}"
+         {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
+    {% if art %}
+      <img class="art-img" src="{{ art }}" alt="">
+    {% else %}
+      <div class="art-no-icon">♫</div>
+    {% endif %}
+    <div class="art-scrim"></div>
   </div>
+  <div class="details-panel">
+    <span class="badge {% if not is_playing %}idle{% endif %}">
+      {% if is_playing %}<svg viewBox="0 0 8 10" style="width:1vmin;height:1vmin;fill:currentColor"><polygon points="0,0 8,5 0,10"/></svg> Now Playing
+      {% else %}Last Played{% endif %}
+    </span>
+    <div class="track-name">{{ track }}</div>
+    <div class="track-artist">{{ artist }}</div>
+    {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
+    <div class="lastfm-mark"><span class="lastfm-dot"></span> Last.fm</div>
+  </div>
+
 {% endif %}
 
 </body>
