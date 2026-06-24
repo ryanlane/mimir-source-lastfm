@@ -4,9 +4,10 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests
 from fastapi import APIRouter, Request
@@ -16,7 +17,7 @@ from . import renderer as _renderer
 
 logger = logging.getLogger(__name__)
 
-LASTFM_API  = "https://ws.audioscrobbler.com/2.0/"
+LASTFM_API    = "https://ws.audioscrobbler.com/2.0/"
 POLL_INTERVAL = 15  # seconds between Last.fm polls
 
 
@@ -35,7 +36,11 @@ class LastfmChannel:
         self._image_cache: Dict[str, Dict[str, Any]] = {}
         self._cached_track: Optional[Dict[str, Any]] = None
         self._cached_status: str = "not_started"
+        self._last_track_fp: Optional[str] = None
         self._poller_task: Optional[asyncio.Task] = None
+        # Push support — server registers a listener via register_listener()
+        self.supports_push = True
+        self._push_listener: Optional[Callable] = None
 
     def _load_plugin_json(self) -> Dict[str, Any]:
         try:
@@ -132,6 +137,30 @@ class LastfmChannel:
             "url":        track.get("url", ""),
         }, "ok"
 
+    # ── Push support ──────────────────────────────────────────────────────────
+
+    def register_listener(self, callback: Callable) -> None:
+        self._push_listener = callback
+        logger.info("[lastfm] push listener registered")
+
+    def _track_fp(self, track_info: Dict) -> str:
+        return f"{track_info['track']}|{track_info['artist']}|{track_info['is_playing']}"
+
+    def _fire_push(self, track_info: Dict) -> None:
+        if not self._push_listener:
+            return
+        fp = self._track_fp(track_info)
+        try:
+            self._push_listener({
+                "channel_id":  self.id,
+                "event_type":  "update",
+                "payload":     {"track": track_info},
+                "ts":          time.time(),
+                "hash":        hashlib.md5(fp.encode()).hexdigest(),
+            })
+        except Exception as exc:
+            logger.warning("[lastfm] push fire failed: %s", exc)
+
     # ── Background poller ────────────────────────────────────────────────────
 
     async def _poll_loop(self):
@@ -141,6 +170,14 @@ class LastfmChannel:
                 track_info, status = await loop.run_in_executor(None, self._fetch_track)
                 self._cached_track  = track_info
                 self._cached_status = status
+
+                if track_info:
+                    fp = self._track_fp(track_info)
+                    if fp != self._last_track_fp:
+                        self._last_track_fp = fp
+                        self._fire_push(track_info)
+                        logger.info("[lastfm] track change detected, push fired: %s — %s",
+                                    track_info["track"], track_info["artist"])
             except Exception as exc:
                 logger.warning("[lastfm] poller error: %s", exc)
             await asyncio.sleep(POLL_INTERVAL)
@@ -262,6 +299,7 @@ class LastfmChannel:
             "capabilities": {
                 "supports_upload":      False,
                 "supports_subchannels": False,
+                "supports_push":        True,
             },
             "ui": {
                 "components": {"manager": f"/api/channels/{self.id}/ui/manage.esm.js"},
