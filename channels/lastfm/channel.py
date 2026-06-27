@@ -9,16 +9,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-import requests
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from .models import Settings
+from .mimir_utils import http_session
 from . import renderer as _renderer
 
 logger = logging.getLogger(__name__)
 
 LASTFM_API    = "https://ws.audioscrobbler.com/2.0/"
 POLL_INTERVAL = 15  # seconds between Last.fm polls
+_USER_AGENT   = "MimirLastFM/1.3 (https://github.com/ryanlane/mimir)"
 
 
 class LastfmChannel:
@@ -31,8 +33,8 @@ class LastfmChannel:
         self.id = self._meta.get("id", "com.lastfm.nowplaying")
         self.settings = self._load_settings()
         if config:
-            self.settings.update(config)
-        self._save_settings()
+            self.settings = Settings.from_dict({**self.settings.to_dict(), **config})
+            self._save_settings()
         self._image_cache: Dict[str, Dict[str, Any]] = {}
         self._cached_track: Optional[Dict[str, Any]] = None
         self._cached_status: str = "not_started"
@@ -41,6 +43,7 @@ class LastfmChannel:
         # Push support — server registers a listener via register_listener()
         self.supports_push = True
         self._push_listener: Optional[Callable] = None
+        self._was_playing: bool = False  # tracks prior play state for stop-event firing
 
     def _load_plugin_json(self) -> Dict[str, Any]:
         try:
@@ -51,40 +54,30 @@ class LastfmChannel:
 
     # ── Settings ──────────────────────────────────────────────────────────────
 
-    def _load_settings(self) -> Dict[str, Any]:
+    def _load_settings(self) -> Settings:
         try:
-            with open(self._settings_path) as f:
-                return json.load(f)
+            return Settings.from_dict(json.loads(self._settings_path.read_text()))
         except FileNotFoundError:
-            return {
-                "username": "",
-                "api_key": "",
-                "show_last_played": True,
-                "theme": "dark",
-                "square_style": "art_only",
-            }
+            return Settings()
 
     def _save_settings(self) -> None:
-        with open(self._settings_path, "w") as f:
-            json.dump(self.settings, f, indent=2)
+        self._settings_path.write_text(json.dumps(self.settings.to_dict(), indent=2))
 
     def _masked_settings(self) -> Dict[str, Any]:
-        key = self.settings.get("api_key", "")
         return {
-            **self.settings,
-            "api_key": ("***" + key[-4:]) if len(key) > 4 else ("***" if key else ""),
-            "configured": bool(self.settings.get("username") and self.settings.get("api_key")),
+            **self.settings.to_public_dict(),
+            "configured": bool(self.settings.username and self.settings.api_key),
         }
 
     # ── Last.fm API ───────────────────────────────────────────────────────────
 
     def _fetch_track(self) -> tuple[Optional[Dict[str, Any]], str]:
-        username = self.settings.get("username", "").strip()
-        api_key  = self.settings.get("api_key", "").strip()
+        username = self.settings.username.strip()
+        api_key  = self.settings.api_key.strip()
         if not username or not api_key:
             return None, "not_configured"
         try:
-            resp = requests.get(
+            resp = http_session(_USER_AGENT).get(
                 LASTFM_API,
                 params={
                     "method": "user.getRecentTracks",
@@ -154,12 +147,30 @@ class LastfmChannel:
             self._push_listener({
                 "channel_id":  self.id,
                 "event_type":  "update",
-                "payload":     {"track": track_info},
+                "payload":     {
+                    "is_playing": track_info["is_playing"],  # top-level (standard contract)
+                    "track":      track_info,
+                },
                 "ts":          time.time(),
                 "hash":        hashlib.md5(fp.encode()).hexdigest(),
             })
         except Exception as exc:
             logger.warning("[lastfm] push fire failed: %s", exc)
+
+    def _fire_stop(self) -> None:
+        """Fire a now-playing-stopped event when the poller finds no track at all."""
+        if not self._push_listener:
+            return
+        try:
+            self._push_listener({
+                "channel_id": self.id,
+                "event_type": "update",
+                "payload":    {"is_playing": False},
+                "ts":         time.time(),
+                "hash":       hashlib.md5(b"stopped").hexdigest(),
+            })
+        except Exception as exc:
+            logger.warning("[lastfm] stop-event fire failed: %s", exc)
 
     # ── Background poller ────────────────────────────────────────────────────
 
@@ -178,6 +189,13 @@ class LastfmChannel:
                         self._fire_push(track_info)
                         logger.info("[lastfm] track change detected, push fired: %s — %s",
                                     track_info["track"], track_info["artist"])
+                    self._was_playing = bool(track_info.get("is_playing"))
+                elif self._was_playing:
+                    # Transition: was playing → no track returned (stopped or cleared)
+                    self._was_playing = False
+                    self._last_track_fp = None
+                    self._fire_stop()
+                    logger.info("[lastfm] playback stopped, stop event fired")
             except Exception as exc:
                 logger.warning("[lastfm] poller error: %s", exc)
             await asyncio.sleep(POLL_INTERVAL)
@@ -201,8 +219,8 @@ class LastfmChannel:
 
         width        = int(settings_block.get("resolution", [800, 480])[0])
         height       = int(settings_block.get("resolution", [800, 480])[1])
-        theme        = self.settings.get("theme", "dark")
-        square_style = self.settings.get("square_style", "art_only")
+        theme        = self.settings.theme
+        square_style = self.settings.square_style
 
         self._ensure_poller()
         if self._cached_status == "not_started":
@@ -212,12 +230,11 @@ class LastfmChannel:
         status     = self._cached_status
 
         if track_info is None:
-            show_last = self.settings.get("show_last_played", True)
-            if not show_last or status == "not_configured":
+            if not self.settings.show_last_played or status == "not_configured":
                 return {"success": False, "error": status}
 
         is_playing = track_info["is_playing"] if track_info else False
-        if not is_playing and not self.settings.get("show_last_played", True):
+        if not is_playing and not self.settings.show_last_played:
             return {"success": False, "error": "nothing_playing"}
 
         fp_parts = [
@@ -300,13 +317,14 @@ class LastfmChannel:
                 "supports_upload":      False,
                 "supports_subchannels": False,
                 "supports_push":        True,
+                "supports_now_playing": True,
             },
             "ui": {
                 "components": {"manager": f"/api/channels/{self.id}/ui/manage.esm.js"},
                 "elements":   {"manager": "x-lastfm-manager"},
             },
             "healthy":     True,
-            "configured":  bool(self.settings.get("username") and self.settings.get("api_key")),
+            "configured":  bool(self.settings.username and self.settings.api_key),
         }
 
     # ── FastAPI router ────────────────────────────────────────────────────────
@@ -350,9 +368,10 @@ class LastfmChannel:
         @router.put("/settings")
         async def put_settings(request: Request):
             body = await request.json()
-            for key in ("username", "api_key", "show_last_played", "theme", "square_style"):
-                if key in body:
-                    self.settings[key] = body[key]
+            self.settings = Settings.from_dict({
+                **self.settings.to_dict(),
+                **{k: body[k] for k in ("username", "api_key", "show_last_played", "theme", "square_style") if k in body},
+            })
             self._save_settings()
             self._image_cache.clear()
             self._cached_track  = None
