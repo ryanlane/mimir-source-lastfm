@@ -46,7 +46,6 @@
     filter: blur(20px) brightness(0.5) saturate(1.3);
   }
   .art-blur.has-art { background-image: var(--art-url); }
-  .art-blur.no-art  { background: radial-gradient(ellipse at center, #1a0a0a, #0a0a0a); }
   .art-img {
     position: absolute;
     inset: 0;
@@ -55,15 +54,48 @@
     object-fit: contain;
     object-position: center;
   }
-  .art-no-icon {
+
+  /* ── No-art placeholder (art-block variant) ─────────────────────
+     Used in layouts that already show track/artist/album in a details
+     panel elsewhere — stands in for missing album art with a stable,
+     track-seeded gradient and just the song title centered on it. */
+  .art-noart {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15vmin;
-    opacity: 0.15;
+    padding: 6%;
+    text-align: center;
+    background: linear-gradient(145deg, var(--noart-grad-1), var(--noart-grad-2));
   }
+  .art-noart-title {
+    font-size: 4.2vmin;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #ffffff;
+    text-shadow: 0 0.2vmin 1vmin rgba(0,0,0,0.35);
+  }
+
+  /* ── No-art full card (square/art_only — nothing else is shown) ──
+     A light, track-seeded gradient card with dark text carrying the
+     full song name / artist / album, since this layout has no
+     separate details panel to fall back on. */
+  .noart-card {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.4vmin;
+    padding: 9%;
+    background: linear-gradient(145deg, var(--noart-bg-1), var(--noart-bg-2));
+    color: #16181a;
+  }
+  .noart-card .track-name   { font-size: 8vmin; font-weight: 800; line-height: 1.12; letter-spacing: -0.02em; color: #16181a; }
+  .noart-card .track-artist { font-size: 4.4vmin; font-weight: 500; color: rgba(22,24,26,0.75); }
+  .noart-card .track-album  { font-size: 3.2vmin; font-weight: 400; color: rgba(22,24,26,0.55); }
+  .noart-card .badge.idle   { background: rgba(22,24,26,0.1); color: rgba(22,24,26,0.55); }
 
   /* ── Badge ───────────────────────────────────────────────────── */
   .badge {
@@ -177,7 +209,7 @@
   }
 </style>
 </head>
-<body>
+<body style="--noart-bg-1: {{ noart.bg_1 }}; --noart-bg-2: {{ noart.bg_2 }}; --noart-grad-1: {{ noart.grad_1 }}; --noart-grad-2: {{ noart.grad_2 }};">
 
 {% set badge_html %}
   <span class="badge {% if not is_playing %}idle{% endif %}">
@@ -187,16 +219,24 @@
 {% endset %}
 
 {% set art_block %}
-  <div class="art-blur {% if art %}has-art{% else %}no-art{% endif %}"
-       {% if art %}style="--art-url: url('{{ art }}')"{% endif %}></div>
   {% if art %}
+    <div class="art-blur has-art" style="--art-url: url('{{ art }}')"></div>
     <img class="art-img" src="{{ art }}" alt="">
   {% else %}
-    <div class="art-no-icon">♫</div>
+    <div class="art-noart"><div class="art-noart-title">{{ track }}</div></div>
   {% endif %}
 {% endset %}
 
-{% if layout == "square" %}
+{% if layout == "square" and not art %}
+
+  <div class="noart-card">
+    {{ badge_html }}
+    <div class="track-name">{{ track }}</div>
+    <div class="track-artist">{{ artist }}</div>
+    {% if album %}<div class="track-album">{{ album }}</div>{% endif %}
+  </div>
+
+{% elif layout == "square" %}
 
   <div class="art-block">{{ art_block }}</div>
 

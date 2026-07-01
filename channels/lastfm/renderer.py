@@ -1,6 +1,7 @@
 """HTML-based Last.fm renderer using Jinja2 + html_renderer_service (Playwright)."""
 
 import base64
+import hashlib
 import logging
 from pathlib import Path
 from typing import Optional
@@ -11,6 +12,32 @@ logger = logging.getLogger("mimir.channels.lastfm.renderer")
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _LASTFM_PLACEHOLDER = "2a96cbd8b46e442fc41c2b86b821562f"
+
+
+def _color_seed(*parts: str) -> int:
+    """Stable hash of track identity so the same song always gets the same
+    'random' color instead of jittering on every re-render."""
+    digest = hashlib.md5("|".join(p or "" for p in parts).encode("utf-8")).hexdigest()
+    return int(digest[:8], 16)
+
+
+def _noart_palette(seed: int) -> dict:
+    """Colors for the no-art fallback, derived from a stable per-track seed.
+
+    - bg_1/bg_2: light pastel gradient stops for the full-card fallback
+      (square/art_only layout with no other text shown anywhere).
+    - grad_1/grad_2: richer, darker gradient stops used to stand in for
+      album art in layouts that already show track details elsewhere.
+    """
+    hue = seed % 360
+    hue2 = (hue + 24) % 360
+    grad_hue2 = (hue + 48) % 360
+    return {
+        "bg_1": f"hsl({hue}, 62%, 88%)",
+        "bg_2": f"hsl({hue2}, 55%, 80%)",
+        "grad_1": f"hsl({hue}, 55%, 40%)",
+        "grad_2": f"hsl({grad_hue2}, 50%, 24%)",
+    }
 
 
 class LastfmHtmlRenderer:
@@ -80,6 +107,7 @@ class LastfmHtmlRenderer:
 
         layout = self._layout_for(width, height, square_style)
         art = self._art_b64(art_url)
+        noart_palette = _noart_palette(_color_seed(artist, track, album))
 
         template = self._jinja.get_template("lastfm.html")
         html = template.render(
@@ -92,6 +120,7 @@ class LastfmHtmlRenderer:
             album=album,
             art=art,
             is_playing=is_playing,
+            noart=noart_palette,
         )
 
         return await html_renderer_service.render(html, width, height)
